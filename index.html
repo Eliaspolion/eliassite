@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elias Polion | Athlete. Scientist. Coach.</title>
+    <meta name="description" content="Elias Polion — professional alpinist and performance coach. High-performance coaching programs grounded in sports science for endurance and mountain athletes.">
+    <!-- Placeholder favicon — replace with a real /favicon.ico or PNG icon when you have one -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22black%22/><text x=%2250%22 y=%2268%22 font-size=%2260%22 fill=%22white%22 text-anchor=%22middle%22 font-family=%22sans-serif%22>E</text></svg>">
+    
+    <!-- Fonts & Scripts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Firebase Auth — see FIREBASE_SETUP.md for how to get your config values -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #000; color: white; margin: 0; }
+
+        .liquid-glass {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            transition: all 0.4s ease;
+        }
+
+        .liquid-glass:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .video-fixed {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1; pointer-events: none;
+        }
+
+        .video-fixed video {
+            width: 100%; height: 100%; object-fit: cover;
+            filter: brightness(0.4) contrast(1.1);
+            animation: kenBurns 25s infinite alternate;
+        }
+
+        @keyframes kenBurns {
+            from { transform: scale(1); }
+            to { transform: scale(1.15); }
+        }
+
+        .input-glass {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 18px;
+            color: white;
+            outline: none;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-size: 0.875rem;
+        }
+        .input-glass:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .hero-title { letter-spacing: -0.06em; line-height: 0.85; font-weight: 900; }
+        .section-padding { padding: 80px 20px; }
+        
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        .chat-scroll::-webkit-scrollbar { width: 3px; }
+        
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.9) translateY(20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-pop { animation: popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        // REPLACE with your real Firebase config — see FIREBASE_SETUP.md
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT",
+        };
+        firebase.initializeApp(firebaseConfig);
+    </script>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const App = () => {
+            const [view, setView] = useState('landing');
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [loginEmail, setLoginEmail] = useState('');
+            const [loginPassword, setLoginPassword] = useState('');
+            const [loginError, setLoginError] = useState('');
+            const [isChatOpen, setIsChatOpen] = useState(false);
+            const [scrolled, setScrolled] = useState(false);
+            
+            const [showPromo, setShowPromo] = useState(false);
+            const [promoEmail, setPromoEmail] = useState('');
+            const [promoSubmitted, setPromoSubmitted] = useState(false);
+
+            const [messages, setMessages] = useState([
+                { role: 'bot', text: 'Hello athlete. I am Elias-Performance Assistant. How can I help you today?' }
+            ]);
+            const [inputValue, setInputValue] = useState('');
+            const chatEndRef = useRef(null);
+
+            useEffect(() => {
+                if (view !== 'landing') {
+                    setShowPromo(false);
+                    return;
+                }
+                const timer = setTimeout(() => {
+                    const dismissed = sessionStorage.getItem('promoDismissed');
+                    if (!dismissed) setShowPromo(true);
+                }, 10000);
+                return () => clearTimeout(timer);
+            }, [view]);
+
+            useEffect(() => {
+                const handleScroll = () => setScrolled(window.scrollY > 50);
+                window.addEventListener('scroll', handleScroll);
+                return () => window.removeEventListener('scroll', handleScroll);
+            }, []);
+
+            const handleChatSubmit = (e) => {
+                e.preventDefault();
+                if (!inputValue.trim()) return;
+                const userMsg = inputValue.toLowerCase();
+                setMessages(prev => [...prev, { role: 'user', text: inputValue }]);
+                setInputValue('');
+                setTimeout(() => {
+                    let botResponse = { role: 'bot', text: "I recommend booking a free 30-minute discovery call to discuss your goals." };
+                    if (userMsg.includes('book') || userMsg.includes('call') || userMsg.includes('schedule')) {
+                        botResponse.text = "Book your consultation here:";
+                        botResponse.link = "https://calendly.com/eliaspolion/30min";
+                        botResponse.linkText = "Book Free Call";
+                    } else if (userMsg.includes('price') || userMsg.includes('cost') || userMsg.includes('pricing') || userMsg.includes('tarif')) {
+                        botResponse.text = "Coaching starts at €50/month (Essential Protocol) up to €150/month (Master Architect). Full details are in the Coaching section below.";
+                        botResponse.link = "#coaching";
+                        botResponse.linkText = "View Coaching Plans";
+                    } else if (userMsg.includes('coach') || userMsg.includes('program') || userMsg.includes('method')) {
+                        botResponse.text = "Elias's coaching blends elite mountain experience with sports science — see The Method section for the full approach.";
+                        botResponse.link = "#about";
+                        botResponse.linkText = "The Method";
+                    } else if (userMsg.includes('contact') || userMsg.includes('email')) {
+                        botResponse.text = "You can reach Elias directly at eliaspolion@hotmail.com, or apply below.";
+                        botResponse.link = "#apply";
+                        botResponse.linkText = "Apply Now";
+                    }
+                    setMessages(prev => [...prev, botResponse]);
+                }, 600);
+            };
+
+            const handlePromoSubmit = async (e) => {
+                e.preventDefault();
+                // Replace with your deployed Worker URL from brevo-worker.js
+                // (Cloudflare dashboard -> Workers & Pages -> your worker -> copy URL)
+                const BREVO_WORKER_URL = 'https://brevo-proxy.YOUR-SUBDOMAIN.workers.dev';
+                try {
+                    await fetch(BREVO_WORKER_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: promoEmail }),
+                    });
+                } catch (err) {
+                    console.error('Brevo sync failed (check Worker URL is set):', err);
+                }
+                setPromoSubmitted(true);
+            };
+
+            const closePromo = () => {
+                setShowPromo(false);
+                sessionStorage.setItem('promoDismissed', 'true');
+            };
+
+            const AthletePortal = () => (
+                <div className="min-h-screen flex items-center justify-center p-6">
+                    {!isLoggedIn ? (
+                        <div className="liquid-glass w-full max-w-md p-10 rounded-[40px] text-center animate-pop">
+                            <h2 className="text-3xl font-black uppercase tracking-tighter mb-2">Athlete Access</h2>
+                            <p className="text-white/40 text-sm mb-8 italic">Secure Bio-Performance Dashboard</p>
+                            <div className="space-y-4">
+                                <input type="email" placeholder="Athlete Email" className="input-glass" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
+                                <input type="password" placeholder="Protocol Key" className="input-glass" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
+                                {loginError && <p className="text-red-400 text-[10px] uppercase tracking-widest">{loginError}</p>}
+                                <button onClick={() => {
+                                    if (!loginEmail.trim() || !loginPassword.trim()) {
+                                        setLoginError('Enter both email and protocol key.');
+                                        return;
+                                    }
+                                    setLoginError('');
+                                    firebase.auth().signInWithEmailAndPassword(loginEmail, loginPassword)
+                                        .then(() => setIsLoggedIn(true))
+                                        .catch((err) => setLoginError(err.message));
+                                }} className="w-full bg-white text-black py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.3em]">Authorize Entry</button>
+                                <button onClick={() => setView('landing')} className="text-[9px] uppercase font-bold text-white/20 hover:text-white mt-4 block mx-auto">Return to Public Site</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="max-w-7xl w-full p-6 animate-in">
+                             <div className="flex justify-between items-end mb-12">
+                                <div>
+                                    <h1 className="text-4xl font-black uppercase tracking-tighter">Welcome, Athlete.</h1>
+                                    <p className="text-white/40 text-xs mt-2 uppercase tracking-[0.3em]">Status: High Adaptation</p>
+                                </div>
+                                <button onClick={() => firebase.auth().signOut().then(() => setIsLoggedIn(false))} className="liquid-glass px-6 py-2 rounded-full text-[9px] font-bold uppercase border border-white/10">Logout</button>
+                            </div>
+                            <div className="grid md:grid-cols-3 gap-8">
+                                <div className="md:col-span-2 liquid-glass p-8 rounded-[40px]">
+                                    <h3 className="text-[10px] uppercase font-bold tracking-[0.4em] text-white/30 mb-6">Today's Protocol</h3>
+                                    <h4 className="text-2xl font-bold uppercase tracking-tight">Threshold Aerobic Block</h4>
+                                    <p className="text-white/60 mt-2 font-light italic">20min Z2 + 4x8min @ LT2 (3min rest) + 15min Z1</p>
+                                    <div className="mt-8 flex gap-4"><button onClick={() => alert('Full week view is coming soon.')} className="bg-white text-black px-6 py-3 rounded-xl text-[10px] font-black uppercase">Full Week</button><button onClick={() => window.print()} className="liquid-glass px-6 py-3 rounded-xl text-[10px] font-bold uppercase border border-white/10">Download PDF</button></div>
+                                </div>
+                                <div className="liquid-glass p-8 rounded-[40px] flex flex-col justify-between">
+                                    <h3 className="text-[10px] uppercase font-bold tracking-[0.4em] text-white/30">Device Sync</h3>
+                                    <div className="space-y-3 mt-6"><button onClick={() => {
+                                        // Replace with your Client ID from strava.com/settings/api
+                                        const STRAVA_CLIENT_ID = 'YOUR_STRAVA_CLIENT_ID';
+                                        const redirectUri = encodeURIComponent(window.location.origin + '/strava-callback.html');
+                                        window.location.href = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=activity:read_all`;
+                                    }} className="w-full py-3 rounded-xl bg-[#FC4C02] text-white font-bold text-[10px] uppercase tracking-widest">Connect Strava</button><button onClick={() => alert('Garmin integration is pending Garmin Developer Program approval.')} className="w-full py-3 rounded-xl bg-[#007cc3] text-white font-bold text-[10px] uppercase tracking-widest">Connect Garmin</button></div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+
+            return (
+                <div className="relative">
+                    <div className="video-fixed">
+                        <video autoPlay loop muted playsInline>
+                            <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260715_082433_69699cf8-444b-4484-93cc-053e57896dfd.mp4" type="video/mp4" />
+                        </video>
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-black/30"></div>
+                    </div>
+
+                    {view === 'landing' ? (
+                        <>
+                            <nav className={`fixed top-0 left-0 w-full z-50 transition-all duration-500 px-6 py-4 md:px-20 ${scrolled ? 'bg-black/50 backdrop-blur-xl py-3 border-b border-white/5' : ''}`}>
+                                <div className="max-w-7xl mx-auto flex justify-between items-center">
+                                    <span className="text-xl font-black uppercase tracking-tighter cursor-pointer">Elias Polion</span>
+                                    <div className="hidden md:flex gap-10 text-[10px] font-bold uppercase tracking-[0.4em] text-white/40">
+                                        <a href="#about" className="hover:text-white transition-colors">The Method</a>
+                                        <a href="#coaching" className="hover:text-white transition-colors">Coaching</a>
+                                        <a href="#apply" className="hover:text-white transition-colors">Apply</a>
+                                    </div>
+                                    <button onClick={() => setView('portal')} className="liquid-glass px-5 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest border border-white/10">Athlete Portal</button>
+                                </div>
+                            </nav>
+
+                            <section className="min-h-screen flex flex-col justify-center px-6 md:px-20 pt-16">
+                                <div className="max-w-6xl">
+                                    <div className="liquid-glass mt-12 mb-6 inline-flex items-center gap-3 px-4 py-2 rounded-full border border-white/10">
+                                        <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></div>
+                                        <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/80">Recruitment: Open</span>
+                                    </div>
+                                    <h1 className="hero-title text-[14vw] md:text-[11rem] font-black uppercase mb-8 leading-[0.8]">REDEFINE<br/>YOUR<br/><span className="text-white/20 italic font-light">LIMITS.</span></h1>
+                                    <div className="flex flex-col md:flex-row md:items-end gap-8">
+                                        <p className="max-w-md text-lg md:text-xl font-light text-white/50 leading-snug">High-performance architecture for athletes demanding absolute physiological precision.</p>
+                                        <a href="#apply" className="liquid-glass group flex items-center gap-5 pl-8 pr-2.5 py-2.5 rounded-full w-fit">
+                                            <span className="text-[11px] font-bold uppercase tracking-widest">Apply Now</span>
+                                            <div className="bg-white text-black p-1.5 rounded-full group-hover:scale-110 transition-transform"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></div>
+                                        </a>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section id="coaching" className="section-padding bg-black/40 backdrop-blur-md border-y border-white/5">
+                                <div className="max-w-7xl mx-auto text-center">
+                                    <h2 className="text-[10px] uppercase font-bold tracking-[0.4em] text-white/30 mb-12">Coaching Programs</h2>
+                                    <div className="grid md:grid-cols-3 gap-6">
+                                        {[
+                                            { p: "50 €", t: "Essential Protocol", d: "Monthly training programming designed for foundational endurance.", link: "https://buy.stripe.com/eVq6oH3NQ3Vn92Z0rCeUU03" },
+                                            { p: "100 €", t: "Performance Elite", d: "Advanced biometric monitoring and weekly adjustments for competitive progress.", link: "https://buy.stripe.com/4gMbJ10BE8bD5QNeiseUU05" },
+                                            { p: "150 €", t: "Master Architect", d: "1:1 Strategy, VO2 Max mapping, and full physiological protocol management.", link: "https://buy.stripe.com/8x27sLckmgI90wt3DOeUU04" }
+                                        ].map((card, i) => (
+                                            <div key={i} className="liquid-glass p-10 rounded-[35px] flex flex-col h-full text-left">
+                                                <div className="text-white/20 text-4xl font-bold mb-4 italic tracking-tight">{card.p}</div>
+                                                <h3 className="text-xl font-bold mb-3 uppercase tracking-tighter">{card.t}</h3>
+                                                <p className="text-sm text-white/40 leading-relaxed font-light flex-grow">{card.d}</p>
+                                                <a href={card.link} target="_blank" rel="noopener noreferrer" className="liquid-glass py-3 mt-8 rounded-xl text-center text-[10px] font-bold uppercase tracking-[0.2em] border border-white/10 hover:bg-white hover:text-black transition-all">Select Plan</a>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* PHOTO SECTION FIXED WITH YOUR IMAGE */}
+                            <section id="about" className="section-padding max-w-7xl mx-auto">
+                                <div className="grid md:grid-cols-2 gap-16 items-center">
+                                    <div><h2 className="text-4xl md:text-7xl font-black tracking-tighter leading-none mb-6 uppercase">Athlete.<br />Scientist.<br />Coach.</h2><div className="space-y-6 mt-8"><p className="text-lg md:text-xl font-light text-white/70 leading-relaxed">Elias Polion is a professional alpinist and coach grounded in Sports Human Sciences.</p><p className="text-base font-light text-white/50 leading-relaxed">His methodology fuses elite mountain experience with scientific rigour — forged in the world's most demanding environments.</p></div></div>
+                                    <div className="liquid-glass aspect-[4/5] rounded-[50px] overflow-hidden relative group">
+                                        <img src="elias.jpg" className="w-full h-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-105" alt="Elias Polion Alpinist and Coach" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                                        <div className="absolute bottom-8 left-8"><span className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/60">Elite Athlete Protocol</span></div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section id="apply" className="section-padding relative">
+                                <div className="max-w-3xl mx-auto text-center mb-10"><h2 className="text-5xl md:text-8xl font-black tracking-tighter uppercase leading-none">Application.</h2><p className="text-white/40 text-base mt-4 italic">Intake protocol for 1:1 mentorship</p></div>
+                                <div className="max-w-3xl mx-auto liquid-glass p-6 md:p-10 rounded-[40px] border border-white/10"><form action="https://api.web3forms.com/submit" method="POST" className="grid grid-cols-1 md:grid-cols-2 gap-5"><input type="hidden" name="access_key" value="812c94e3-d4d6-4ec0-a141-592090556f79" /><div className="col-span-1"><label className="text-[9px] uppercase font-bold tracking-widest text-white/40 mb-2 block">Full Name</label><input type="text" name="name" required className="input-glass" placeholder="John Doe" /></div><div className="col-span-1"><label className="text-[9px] uppercase font-bold tracking-widest text-white/40 mb-2 block">WhatsApp / Phone</label><input type="tel" name="phone" required className="input-glass" placeholder="+1..." /></div><div className="col-span-2"><label className="text-[9px] uppercase font-bold tracking-widest text-white/40 mb-2 block">Email Address</label><input type="email" name="email" required className="input-glass" placeholder="athlete@performance.com" /></div><div className="col-span-2"><label className="text-[9px] uppercase font-bold tracking-widest text-white/40 mb-2 block">Performance Goal</label><textarea name="goal" rows="3" required className="input-glass" placeholder="Target event or metric..."></textarea></div><button type="submit" className="col-span-2 bg-white text-black py-5 rounded-xl text-[10px] font-black uppercase tracking-[0.4em] hover:bg-zinc-200 transition-all active:scale-95">Submit Protocol</button></form></div>
+                            </section>
+
+                            <footer className="py-20 text-center">
+                                <div className="flex flex-col items-center gap-6"><div className="flex items-center gap-8"><a href="https://instagram.com/eliaspolion" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 group transition-all"><div className="liquid-glass p-2 rounded-full border border-white/10 transition-all"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg></div><span className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/40 transition-all group-hover:text-white">@ELIASPOLION</span></a><a href="https://wa.me/message/ERX4GOOF46KIM1" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 group transition-all"><div className="liquid-glass p-2 rounded-full border border-white/10 transition-all"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></div><span className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/40 group-hover:text-white transition-all">@eliaspolion</span></a></div><a href="mailto:ELIASPOLION@HOTMAIL.COM" className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/40 hover:text-white transition-all">ELIASPOLION@HOTMAIL.COM</a><div className="text-[9px] font-bold uppercase tracking-[0.4em] text-white/20">FRANCE · EUROPE · WORLDWIDE REMOTE.</div><div className="text-[9px] font-bold uppercase tracking-[0.5em] text-white/10 mt-4">ELIAS POLION &copy; 2026 &bull; BUILT FOR PEAK PERFORMANCE</div></div>
+                            </footer>
+                        </>
+                    ) : (
+                        <AthletePortal />
+                    )}
+
+                    {showPromo && view === 'landing' && (
+                        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+                            <div className="liquid-glass w-full max-w-md p-8 rounded-[40px] text-center animate-pop relative">
+                                <button onClick={closePromo} className="absolute top-6 right-6 text-white/40 hover:text-white transition-colors">✕</button>
+                                {!promoSubmitted ? (
+                                    <>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mb-2">Exclusive Offer</div>
+                                        <h2 className="text-3xl font-black uppercase tracking-tighter mb-4 leading-tight">OFFER ACTIVE</h2>
+                                        <p className="text-sm font-light text-white/60 mb-8 leading-relaxed">Unlock 10% off your first coaching block. Enter your email to claim the protocol.</p>
+                                        <form onSubmit={handlePromoSubmit} className="space-y-4">
+                                            <input type="email" required placeholder="Email Address" className="input-glass text-center" value={promoEmail} onChange={(e) => setPromoEmail(e.target.value)} />
+                                            <button type="submit" className="w-full bg-white text-black py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.4em] hover:bg-zinc-200 transition-all">Claim Discount</button>
+                                        </form>
+                                    </>
+                                ) : (
+                                    <div className="py-8">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500 mb-4">Protocol Active</div>
+                                        <h3 className="text-lg font-light text-white/60 mb-2 italic">Use code at checkout:</h3>
+                                        <div className="text-4xl font-black tracking-tighter border-2 border-white/10 rounded-2xl py-4 bg-white/5 mb-6 text-white">SUMMIT10</div>
+                                        <button onClick={closePromo} className="text-[10px] uppercase font-bold tracking-widest text-white/40 hover:text-white">Continue to Site</button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="fixed bottom-6 right-6 z-[100]">
+                        {isChatOpen && (
+                            <div className="liquid-glass w-[320px] h-[450px] rounded-[30px] mb-4 p-6 flex flex-col animate-in slide-in-from-bottom">
+                                <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2"><span className="text-[9px] font-bold uppercase tracking-widest text-white/40">Elias-Assistant</span><button onClick={() => setIsChatOpen(false)}>✕</button></div>
+                                <div className="flex-1 overflow-y-auto chat-scroll space-y-4 pr-1 mb-4">
+                                    {messages.map((m, i) => (
+                                        <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                            <div className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed ${m.role === 'user' ? 'bg-white/10 text-white' : 'bg-white text-black font-medium'}`}>
+                                                {m.text}
+                                                {m.link && <a href={m.link} target="_blank" className="block mt-2 py-2 px-3 bg-black text-white rounded-lg text-center font-bold text-[9px] uppercase tracking-widest">{m.linkText || 'Open Link'}</a>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div ref={chatEndRef} />
+                                </div>
+                                <form onSubmit={handleChatSubmit} className="flex gap-2">
+                                    <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Ask a question..." className="input-glass text-[10px] py-3 px-4 flex-1" />
+                                    <button type="submit" className="liquid-glass p-3 rounded-xl border border-white/10 flex items-center justify-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+                                </form>
+                            </div>
+                        )}
+                        <button onClick={() => setIsChatOpen(!isChatOpen)} className="liquid-glass h-14 w-14 rounded-full flex items-center justify-center hover:scale-110 active:scale-90 transition-all"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
